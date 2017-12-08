@@ -8,5 +8,8 @@
     <profile name="sbt 1" modules="tchoomulticores">
       <option name="featureWarnings" value="true" />
     </profile>
+    <profile name="sbt 1" modules="tchoomulticores">
+      <option name="featureWarnings" value="true" />
+    </profile>
   </component>
 </project>
