@@ -39,7 +39,33 @@ Feature: Actors
     Then it returns another failed Actor
 
   Scenario: Asking something else from a failed Actor
-    When I instantiate an actor
+    Given I instantiate an actor
     And I make it fail
     When I ask it something that returns anything else
     Then it returns a failed Future
+
+  Scenario: Map
+    Given I instantiate an actor
+    When I use a for comprehension over it
+    Then I get an Actor corresponding to the mapped function
+
+  Scenario: FlatMap
+    Given I instantiate an actor
+    And I instantiate another Actor
+    When I use a for comprehension over both Actors
+    Then I get an Actor corresponding to the map and flatMap functions
+
+  Scenario: Failed withFilter
+    Given I instantiate an actor
+    When I filter it with a failed condition
+    Then I get an empty Actor back
+
+  Scenario: Successful withFilter
+    Given I instantiate an actor
+    When I filter it with a successful condition
+    Then I get the same Actor back
+
+  Scenario: Iterating over an Actor
+    Given I instantiate an actor
+    When I iterate over it
+    Then The action gets executed once
