@@ -1,172 +1,136 @@
 package steps
 
-import cucumber.api.PendingException
 import cucumber.api.scala.{EN, ScalaDsl}
 import mw.actor.{Acting, Actor}
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 
 class ActorsSteps extends ScalaDsl with EN {
-  object Lazies {
-    implicit val exec: ExecutionContext = scala.concurrent.ExecutionContext.Implicits.global
-    lazy val app = Actor(MyApp())
-    lazy val app2 = Actor(MyApp())
-    implicit val caller: Actor[Acting] = app
-    lazy val anotherActor = Actor(MyActing())
-    lazy val failedActor = app.withFilter(_ => false)
-    lazy val successActor = app.withFilter(_ => true)
-    lazy val forComprehensionResult = for (acting <- app) yield f(acting)
-    lazy val forComp2Result = for {
-      a <- app
-      b <- anotherActor
-    } yield {
-      g(a, b)
-    }
-    lazy val actorResult = app.?(_.self)
-    lazy val anotherActorResult = app.?(_.self)
-  }
+  outer =>
   val exec = scala.concurrent.ExecutionContext.Implicits.global
-  var tellArg: String = _
-  var futureResult: Future[String] = _
-  class MyApp(implicit val exec: ExecutionContext) extends Acting {
-    def creator = self
-    def tell(arg: String): Unit = tellArg = arg
+  lazy val firstActor = Actor(FirstActing()(exec))
+  var told = ""
+  var futureString = Future("")(exec)
+  var actorResult = Actor.empty[SecondActing]
+  class FirstActing(implicit val exec: ExecutionContext) extends Acting {
+    private lazy val other = Actor(SecondActing())
+    private lazy val askedActor = other ? (_.askActor)
+    val creator = self
+    def tell(something: String): Unit = told = something
+    def tellOther(something: String): Unit = other ! (_.tell(something))
+    def createOther(): Unit = other
     def greet(name: String): String = s"Hello $name"
-    def askGreet(name: String): Future[String] = self ? (_.greet(name))
+    def askOther(name: String): Future[String] = other ? (_.greet(name))
+    def askActor(): Unit = askedActor
+    def identifyActorResult(): Future[String] = askedActor ? (_.identify)
+    def failedFuture: Future[String] = Future(throw new Exception("Intentional"))
+    def throwingFuture: Future[String] = throw new Exception("Intentional")
+    def throwingActor: Actor[SecondActing] = throw new Exception("Intentional")
+    def throwingString: String = throw new Exception("Intentional")
   }
-  object MyApp {
-    def apply()(implicit exec: ExecutionContext) = new MyApp
+  object FirstActing {
+    def apply()(implicit exec: ExecutionContext) = new FirstActing()
   }
-  class MyActing(val creator: Actor[Acting], val exec: ExecutionContext) extends Acting {
-    def identify: String = "MyActing"
+  class SecondActing(val creator: Actor[Acting])(implicit val exec: ExecutionContext) extends Acting {
+    def tell(something: String): Unit = told = something
+    def greet(name: String): String = s"Hello $name"
+    def askActor: Actor[ThirdActing] = Actor(ThirdActing())
   }
-  object MyActing {
-    def apply()(implicit caller: Actor[Acting], exec: ExecutionContext) = new MyActing(caller, exec)
+  object SecondActing {
+    def apply()(implicit caller: Actor[Acting], exec: ExecutionContext) = new SecondActing(caller)
   }
-  class MyOtherActing(val creator: Actor[Acting], val exec: ExecutionContext) extends Acting
-  object MyOtherActing {
-    def identify: String = "MyOtherActing"
-    def apply()(implicit caller: Actor[Acting], exec: ExecutionContext) =
-      new MyOtherActing(caller, exec)
+  class ThirdActing(val creator: Actor[Acting])(implicit val exec: ExecutionContext) extends Acting {
+    def identify: String = "Third Actor"
   }
-  def f(app: MyApp)(implicit caller: Actor[Acting], exec: ExecutionContext): MyActing = MyActing()
-  def g(app: MyApp, act: MyActing)
-       (implicit caller: Actor[Acting], exec: ExecutionContext): MyOtherActing =
-    MyOtherActing()
-  Given("""^I instantiate an actor$""") { () =>
-    Lazies.app
-    tellArg = null
-    futureResult = null
+  object ThirdActing {
+    def apply()(implicit caller: Actor[Acting], exec: ExecutionContext) = new ThirdActing(caller)
+  }
+  Given("""^I instantiate an Actor$""") { () =>
+    firstActor
+    told = ""
+    futureString = Future("")(exec)
+    actorResult = Actor.empty
   }
   When("""^I tell it something$""") { () =>
-    Lazies.app ! (_.tell("Something"))
+    firstActor ! (_.tell("Kiss"))
   }
-  Then("""^the corresponding method is executed$""") { () =>
+  Then("""^it executes the told method$""") { () =>
     synchronized {
       wait(100)
     }
-    assert(tellArg == "Something")
+    assert(told == "Kiss")
+  }
+  When("""^the first Actor tells something to the second one$""") { () =>
+    firstActor ! (_.tellOther("Love"))
+  }
+  Then("""^the second Actor executes the told function$""") { () =>
+    synchronized {
+      wait(100)
+    }
+    assert(told == "Love")
+  }
+  Given("""^I let the first Actor instantiate another one$""") { () =>
+    firstActor ! (_.createOther())
+  }
+  When("""^I ask it something that returns neither an Actor neither a Future$""") { () =>
+    futureString = firstActor ? (_.greet("Marc"))
+  }
+  Then("""^I receive a future that will contain the answer$""") { () =>
+    var result = ""
+    futureString.onComplete {
+      case Success(text) => result = text
+      case _ =>
+    }(exec)
+    synchronized {
+      wait(100)
+    }
+    assert(result == "Hello Marc")
   }
   When("""^I ask it something that returns a Future$""") { () =>
-    futureResult = Lazies.app ? (_.askGreet("Marc"))
+    futureString = firstActor ? (_.askOther("Marc"))
   }
-  Then("""^the returned future will contain the answer$""") { () =>
-    synchronized {
-      wait(100)
-    }
-    assert(futureResult.value.get.get == "Hello Marc")
+  When("""^I tell the first Actor to ask the second Actor for something that returns a third Actor$""") { () =>
+    firstActor ! (_.askActor())
   }
-  When("""^I ask it something that returns an Actor$""") { () =>
-    Lazies.actorResult
-  }
-  Then("""^the returned actor will contain the answer$""") { () =>
-    val t1 = Lazies.app ? (_.toString)
-    val t2 = Lazies.actorResult ? (_.toString)
-    synchronized {
-      wait(100)
-    }
-    assert(t1.value.get.get == t2.value.get.get)
-  }
-  When("""^I ask it something that returns anything else$""") { () =>
-    futureResult = Lazies.app ? (_.greet("Marc"))
-  }
-  Given("""^I make it fail$""") { () =>
-    Lazies.app ! { _ =>
-      throw new Exception("Intended failure")
-    }
-  }
-  Then("""^nothing happens$""") { () =>
-    synchronized {
-      wait(100)
-    }
-    assert(tellArg == null)
-  }
-  Then("""^it returns a failed Future$""") { () =>
-    synchronized {
-      wait(100)
-    }
-    assert(futureResult.value.get.isFailure)
-  }
-  Then("""^it returns a failed Actor$""") { () =>
-    synchronized {
-      wait(100)
-    }
-    assert(Lazies.actorResult.isFailed)
-  }
-  When("""^I ask it again something that returns an Actor$""") { () =>
-    Lazies.anotherActorResult
-  }
-  Then("""^it returns another failed Actor$""") { () =>
-    assert(Lazies.anotherActorResult.isFailed)
-  }
-  When("""^I use a for comprehension over it$""") { () =>
-    Lazies.forComprehensionResult
-  }
-  Then("""^I get an Actor corresponding to the mapped function$""") { () =>
-    val future = Lazies.forComprehensionResult ? (_.identify)
+  Then("""^the first Actor receives an Actor that will contain the answer$""") { () =>
     var result = Try("")
-    implicit val exec: ExecutionContext = Lazies.exec
-    future.onComplete(result = _)
+    val future = firstActor ? (_.identifyActorResult())
+    future.onComplete(result = _)(exec)
     synchronized {
       wait(100)
     }
-    assert(result == Success("MyActing"))
+    assert(result == Success("Third Actor"))
   }
-  Given("""^I instantiate another Actor$""") { () =>
-    Lazies.anotherActor
+  When("""^I ask it something that returns a failed Future$""") { () =>
+    futureString = firstActor ? (_.failedFuture)
   }
-  When("""^I use a for comprehension over both Actors$""") { () =>
-    Lazies.forComp2Result
-  }
-  Then("""^I get an Actor corresponding to the map and flatMap functions$""") { () =>
-    var result: Boolean = false
-    Lazies.forComp2Result ! { acting =>
-      result = acting.isInstanceOf[MyOtherActing]
+  Then("""^I receive a Future that will fail with the same Exception$""") { () =>
+    implicit val exec: ExecutionContext = outer.exec
+    var failure = Option.empty[Throwable]
+    futureString.onComplete {
+      case Failure(error) => failure = Some(error)
+      case _ =>
     }
     synchronized {
       wait(100)
     }
-    assert(result)
+    assert(failure.get.getMessage == "Intentional")
   }
-  When("""^I filter it with a failed condition$""") { () =>
-    Lazies.failedActor
+  When("""^I ask it something that should return a Future but throws$""") { () =>
+    futureString = firstActor ? (_.throwingFuture)
   }
-  Then("""^I get an empty Actor back$""") { () =>
-    assert(Lazies.failedActor.getClass == Actor.empty.getClass)
+  When("""^I ask it something that should return an Actor but throws$""") { () =>
+    implicit val exec: ExecutionContext = outer.exec
+    actorResult = firstActor ? (_.throwingActor)
   }
-  When("""^I filter it with a successful condition$""") { () =>
-    Lazies.successActor
+  Then("""^I received a failed Actor$""") { () =>
+    assert(actorResult.isFailed)
   }
-  Then("""^I get the same Actor back$""") { () =>
-    assert(Lazies.app == Lazies.successActor)
+  Then("""^The Actor is failed with the same Exception$""") { () =>
+    assert(actorResult.failure.get.getMessage == "Intentional")
   }
-  When("""^I iterate over it$""") { () =>
-    //// Write code here that turns the phrase above into concrete actions
-    throw new PendingException()
-  }
-  Then("""^The action gets executed once$""") { () =>
-    //// Write code here that turns the phrase above into concrete actions
-    throw new PendingException()
+  When("""^I ask it something that should return neither a Future neither an Actor but throws$""") { () =>
+    futureString = firstActor ? (_.throwingString)
   }
 }

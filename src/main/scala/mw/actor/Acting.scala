@@ -1,39 +1,54 @@
 package mw.actor
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Try}
 
 trait Acting {
-  def creator: Actor[Acting]
-  implicit def exec: ExecutionContext
-  def failed(error: Throwable): Unit = self.failed(error)
-  def onFailure(actor: Actor[Acting], error: Throwable): Boolean = true
-  implicit val self: Actor[this.type] = new Actor[this.type] {
+  acting =>
+  implicit val exec: ExecutionContext
+  val creator: Actor[Acting]
+  implicit lazy val self: Actor[acting.type] = new Actor[acting.type] {
     private var inbox = Promise[Inbox]
     execute(inbox.future)
-    def creator = Acting.this.creator
-    def ![U](msg: Acting.this.type => U): Unit = error match {
-      case None => enqueue(inbox, Inbox(msg))
-      case Some(_) =>
+    def ![U](msg: acting.type => U): Unit = enqueue(inbox, Inbox(msg))
+    def failure = inbox.future.value match {
+      case Some(Failure(error)) => Some(error)
+      case _ => None
     }
-    override def failed(error: Throwable)(implicit caller: Actor[Acting]): Unit = {
-      if (Acting.this.onFailure(caller, error)) super.failed(error)
-    }
-    override protected def onFailure(error: Throwable): Unit = {
-      if (Acting.this.onFailure(self, error)) super.onFailure(error)
+    def fail(error: Throwable)(implicit caller: Actor[Acting]): Unit = self ! { acting =>
+      if (acting.onFailure(caller, error)) {
+        creator.fail(error)(self)
+        throw FailedException(error)
+      }
     }
     private def enqueue(promise: Promise[Inbox], elem: Inbox): Unit = {
       if (promise.trySuccess(elem)) inbox = elem.tail
-      else enqueue(promise.future.value.get.get.tail, elem)
-    }
-    private def execute(future: Future[Inbox]): Unit = for (elem <- future) {
-      Try(elem.head(Acting.this)) match {
-        case Success(_) => execute(elem.tail.future)
-        case Failure(e) => onFailure(e)
+      else for {
+        trie <- promise.future.value
+        next <- trie
+      } {
+        enqueue(next.tail, elem)
       }
     }
-    private case class Inbox(head: Acting.this.type => Any) {
+    private def enqueue(promise: Promise[Inbox], error: Throwable): Unit = {
+      if (promise.tryFailure(error)) inbox = promise
+      else for {
+        trie <- promise.future.value
+        next <- trie
+      } {
+        enqueue(next.tail, error)
+      }
+    }
+    private def execute(future: Future[Inbox]): Unit = for (elem <- future) {
+      Try(elem.head(acting)) match {
+        case Failure(FailedException(error)) => enqueue(inbox, error)
+        case _ => execute(elem.tail.future)
+      }
+    }
+    private case class Inbox(head: acting.type => Any) {
       val tail = Promise[Inbox]
     }
+    private case class FailedException(error: Throwable) extends Exception(error)
   }
+  def onFailure(actor: Actor[Acting], error: Throwable): Boolean = true
 }
