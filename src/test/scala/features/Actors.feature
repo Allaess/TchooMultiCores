@@ -1,49 +1,92 @@
 Feature: Actors
 
-  Scenario: Telling to an Actor from non Actor code
+  Scenario: Telling an Actor
     Given I instantiate an Actor
     When I tell it something
-    Then it executes the told method
+    Then it executes the corresponding method
+    And the receiving Actor is not failed
 
-  Scenario: Telling an Actor from another Actor
+  Scenario: Asking an Actor from an Actor
     Given I instantiate an Actor
-    And I let the first Actor instantiate another one
-    When the first Actor tells something to the second one
-    Then the second Actor executes the told function
+    When I ask it something that returns an Actor
+    Then I get an Actor with the same behavior
+    And the receiving Actor is not failed
 
-  Scenario: Asking for a Future
+  Scenario: Asking an Acting from an Actor
+    Given I instantiate an Actor
+    When I ask it something that returns an Acting
+    Then I get an Actor with the same behavior
+    And the receiving Actor is not failed
+
+  Scenario: Asking a Future from an Actor
     Given I instantiate an Actor
     When I ask it something that returns a Future
-    Then I receive a future that will contain the answer
+    Then I get a Future that will complete to the same value
+    And the receiving Actor is not failed
 
-  Scenario: Asking for an Actor
+  Scenario: Asking something else from an Actor
     Given I instantiate an Actor
-    And I let the first Actor instantiate another one
-    When I tell the first Actor to ask the second Actor for something that returns a third Actor
-    Then the first Actor receives an Actor that will contain the answer
+    When I ask it something that returns anything else
+    Then I get a Future that will complete to the same value
+    And the receiving Actor is not failed
 
-  Scenario:Asking for something else
-    Given I instantiate an Actor
-    When I ask it something that returns neither an Actor neither a Future
-    Then I receive a future that will contain the answer
-
-  Scenario: Asking for a Future and getting a failed Future
-    Given I instantiate an Actor
-    When I ask it something that returns a failed Future
-    Then I receive a Future that will fail with the same Exception
-
-  Scenario: Asking for a Future and throwing
-    Given I instantiate an Actor
-    When I ask it something that should return a Future but throws
-    Then I receive a Future that will fail with the same Exception
-
-  Scenario: Asking for an Actor and throwing
+  Scenario: Asking an Actor from an Actor that throws
     Given I instantiate an Actor
     When I ask it something that should return an Actor but throws
-    Then I received a failed Actor
-    And The Actor is failed with the same Exception
+    Then I get a failed Actor with the same failure
+    And the receiving Actor is not failed
 
-  Scenario: Asking for something else and throwing
+  Scenario: Asking a failed Actor from an Actor
     Given I instantiate an Actor
-    When I ask it something that should return neither a Future neither an Actor but throws
-    Then I receive a Future that will fail with the same Exception
+    When I ask it something that returns a failed Actor
+    Then I get a failed Actor with the same failure
+    And the receiving Actor is failed
+
+  Scenario: Asking an Acting from an Actor that throws
+    Given I instantiate an Actor
+    When I ask it something that should return an Acting but throws
+    Then I get a failed Actor with the same failure
+    And the receiving Actor is not failed
+
+  Scenario: Asking a Future from an Actor that throws
+    Given I instantiate an Actor
+    When I ask it something that should return a Future but throws
+    Then I get a failed Future with the same failure
+    And the receiving Actor is not failed
+
+  Scenario: Asking a failed Future from an Actor
+    Given I instantiate an Actor
+    When I ask it something that returns a failed Future
+    Then I get a failed Future with the same failure
+    And the receiving Actor is not failed
+
+  Scenario: Asking something else from an Actor that throws
+    Given I instantiate an Actor
+    When I ask it something that should return something else but throws
+    Then I get a failed Future with the same failure
+    And the receiving Actor is not failed
+
+  Scenario: Mapping an Actor
+    Given I instantiate an Actor
+    And I let it instantiate a second one
+    When I let the first Actor map the second one
+    Then I get a mapped Actor
+
+  Scenario: FlatMapping an Actor
+    Given I instantiate an Actor
+    And I let it instantiate a second one
+    And I let it instantiate a third one
+    When I let the first Actor flatMap over the two others
+    Then I get a flatMapped Actor
+
+  Scenario: Filtering an Actor (matching)
+    Given I instantiate an Actor
+    And I let it instantiate a second one
+    When I let the first Actor filter over the second one with a matching filter
+    Then I get the Actor
+
+  Scenario: Filtering an Actor (non-matching)
+    Given I instantiate an Actor
+    And I let it instantiate a second one
+    When I let the first Actor filter over the second one with a non-matching filter
+    Then I get an empty Actor
