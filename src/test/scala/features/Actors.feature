@@ -1,92 +1,36 @@
 Feature: Actors
 
-  Scenario: Telling an Actor
-    Given I instantiate an Actor
+  Scenario: Initializing Actor system
+    Given I create a new Root Actor
+    When I let it start a new App
+    Then the new App instance receives the start() message
+
+  Scenario: Telling an actor
+    Given I create a new Root Actor
+    And I let it start a new App
     When I tell it something
-    Then it executes the corresponding method
-    And the receiving Actor is not failed
+    Then it executes the told method
 
   Scenario: Asking an Actor from an Actor
-    Given I instantiate an Actor
-    When I ask it something that returns an Actor
-    Then I get an Actor with the same behavior
-    And the receiving Actor is not failed
+    Given I create a new Root Actor
+    And I let it start a new App
+    When I ask it something that returns a Greeter Actor
+    Then I receive a Greeter Actor
 
   Scenario: Asking an Acting from an Actor
-    Given I instantiate an Actor
-    When I ask it something that returns an Acting
-    Then I get an Actor with the same behavior
-    And the receiving Actor is not failed
+    Given I create a new Root Actor
+    And I let it start a new App
+    When I ask it something that returns a Greeter Acting
+    Then I receive a Greeter Actor
 
   Scenario: Asking a Future from an Actor
-    Given I instantiate an Actor
+    Given I create a new Root Actor
+    And I let it start a new App
     When I ask it something that returns a Future
-    Then I get a Future that will complete to the same value
-    And the receiving Actor is not failed
+    Then I receive a Future
 
-  Scenario: Asking something else from an Actor
-    Given I instantiate an Actor
+  Scenario: Asking anything else from an Actor
+    Given I create a new Root Actor
+    And I let it start a new App
     When I ask it something that returns anything else
-    Then I get a Future that will complete to the same value
-    And the receiving Actor is not failed
-
-  Scenario: Asking an Actor from an Actor that throws
-    Given I instantiate an Actor
-    When I ask it something that should return an Actor but throws
-    Then I get a failed Actor with the same failure
-    And the receiving Actor is not failed
-
-  Scenario: Asking a failed Actor from an Actor
-    Given I instantiate an Actor
-    When I ask it something that returns a failed Actor
-    Then I get a failed Actor with the same failure
-    And the receiving Actor is failed
-
-  Scenario: Asking an Acting from an Actor that throws
-    Given I instantiate an Actor
-    When I ask it something that should return an Acting but throws
-    Then I get a failed Actor with the same failure
-    And the receiving Actor is not failed
-
-  Scenario: Asking a Future from an Actor that throws
-    Given I instantiate an Actor
-    When I ask it something that should return a Future but throws
-    Then I get a failed Future with the same failure
-    And the receiving Actor is not failed
-
-  Scenario: Asking a failed Future from an Actor
-    Given I instantiate an Actor
-    When I ask it something that returns a failed Future
-    Then I get a failed Future with the same failure
-    And the receiving Actor is not failed
-
-  Scenario: Asking something else from an Actor that throws
-    Given I instantiate an Actor
-    When I ask it something that should return something else but throws
-    Then I get a failed Future with the same failure
-    And the receiving Actor is not failed
-
-  Scenario: Mapping an Actor
-    Given I instantiate an Actor
-    And I let it instantiate a second one
-    When I let the first Actor map the second one
-    Then I get a mapped Actor
-
-  Scenario: FlatMapping an Actor
-    Given I instantiate an Actor
-    And I let it instantiate a second one
-    And I let it instantiate a third one
-    When I let the first Actor flatMap over the two others
-    Then I get a flatMapped Actor
-
-  Scenario: Filtering an Actor (matching)
-    Given I instantiate an Actor
-    And I let it instantiate a second one
-    When I let the first Actor filter over the second one with a matching filter
-    Then I get the Actor
-
-  Scenario: Filtering an Actor (non-matching)
-    Given I instantiate an Actor
-    And I let it instantiate a second one
-    When I let the first Actor filter over the second one with a non-matching filter
-    Then I get an empty Actor
+    Then I receive a Future
