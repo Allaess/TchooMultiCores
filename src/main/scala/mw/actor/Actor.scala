@@ -46,6 +46,7 @@ trait Actor[+A <: Acting] {
   def collect[B <: Acting](pf: PartialFunction[A, B])(implicit caller: Actor[Acting],
                                                       exec: ExecutionContext): Actor[B] =
     withFilter(pf.isDefinedAt).map(pf)
+  def foreach[U](f: A => U): Unit = self ! f
 }
 object Actor {
   lazy val root = Actor(new Root()(scala.concurrent.ExecutionContext.Implicits.global))

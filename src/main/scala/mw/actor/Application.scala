@@ -1,5 +1,5 @@
 package mw.actor
 
-trait App extends Acting {
+trait Application extends Acting {
   def start(): Unit
 }
