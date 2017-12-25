@@ -25,5 +25,6 @@ class Root(implicit val exec: ExecutionContext) extends Acting {
   }
 }
 object Root {
+  def actor(implicit exec: ExecutionContext) = Actor(Root.apply)
   def apply(implicit exec: ExecutionContext) = new Root
 }
